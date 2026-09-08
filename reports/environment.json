@@ -1,0 +1,10 @@
+{
+  "python": "3.13.15 (main, Aug  6 2026, 11:06:23) [GCC 11.4.0]",
+  "pytorch": "2.11.0+cu128",
+  "device": "cuda",
+  "transformers": "5.16.1",
+  "wandb": "0.28.1",
+  "tiktoken": "0.14.0",
+  "cuda": "12.8",
+  "gpu": "Tesla T4"
+}
