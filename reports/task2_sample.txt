@@ -1,0 +1,193 @@
+Overriding: out_dir = out-shakespeare-char
+number of parameters: 0.80M
+Loading meta from data/shakespeare_char/meta.pkl...
+
+And the Rorince.
+
+STABROLUS:
+KING God buter well the deather, have barthing thy heart.
+
+VOMIXENIO:
+I away, my far's a will must of the of in hearth!
+What like es in ensent in latist in ove the deave the
+For that ou liking that this my deave to cartiess
+Whery hell made or of this down my like to that
+To Will to do pricks to the our far in him:
+And of my he reshe knome bruch for to wors!
+
+QUEEN ELIZAM:
+Ay, fair are gron? My Heresee!
+
+GRICHAR:
+Saday my is a for him be to mare.
+
+CRIUS:
+Whow my care,
+---------------
+
+Men pars, be ary thou come and me
+That he see--pormes the me madany the may diesst,
+The condend of courfsomanss, that lord
+I is she lordings.
+
+LARIO:
+And thou to mading the would know the is so not hear
+Of Rill Lord, com I sheall night of duche neeso may
+The him and that fraving with so leve buck now,
+Whose lad I marrie, more him artile.
+
+KING HARD III:
+Let thou may the to meised the now the such
+That you ou what that the ought Eislle be thou so have apout.
+
+BENTIUS:
+My wout it for Gloork with e
+---------------
+
+Me roven it we sof sir, I would whe will the could
+Think flaton and that have wordes not bess mines so tears
+Sing this so I the hat a word, and a beare and bence
+AInd my ade the call and the and in thim blament!
+
+FLARGE:
+Cire, twill it what she would in that sticed's well,
+Shall lalll lordger: to the not jueak's my word!
+
+KING EDWARD IV:
+Go your is stay abell tradent's the not come.
+Then they rep, not the to thou the bay sweell.
+
+Seee:
+And I with with te you marle plains yeellf,
+But of hold to h
+---------------
+
+The should knows; and plock, say, as and the work
+And scace: you.
+
+Preten:
+Let seell, and the more, what preity have, are paten the him
+'To rueses a rish daid the ward as as in his off mhis,
+And as o' not this see that lay not lest,
+And lordg for that he cruchirce to o art, livest
+The shall the peres before a say a true, to be theing is.
+
+PRICE:
+Sir, I not to the a do man the fands your your my head,
+I what thou a brause come and the havear in to swit shown's for and
+A such I here he worke and t
+---------------
+
+Be the ablel that him lords you to sting gron.
+Grame not me, so the dead me the contrd
+But conntle their soon a well the lay, foor I welll?
+The for be rego they sir, so thou do
+The come to for minet my his come them.
+
+GLOUCES:
+And nepter not more here on shence! Clown, I man.
+
+AUTIV:
+Why, show well ad in have comain
+Of appoour in his sobe.
+
+COMINIUS:
+Whe cost an my she the gread, thou are ress pared,
+Sir, here, I should moly be a the deaws:
+I as deay, Gorr her densles for our my streaful;
+Mare b
+---------------
+
+
+MENIUS:
+And the she sent seend to gods ist his and,
+And way, and the sir, I what camn and wind set!
+
+DUKE OF VINLIOF HARD:
+I thy land be or more.
+
+MENENENIUS:
+Mare the coure the to will well.
+
+GRIONUS:
+What our that our you his are your beark well ford
+The she thou bit it shold, here buty faterr wart:
+When the so the year a know and hourst tish guing to do
+When to me, and and thouy corthan did sto o be and him:
+O! the that be crings you hath here you my shall he jrose,
+But mest his and by his t
+---------------
+
+Should comenemer to so, it well theseset,
+And sing which to ince in this all the als:
+And a shall the are will faul vill to ort?
+
+REOMERNIO:
+What as haver a time a and ruking the reemman or hen,
+Thes is a a failst. Here you with king; one so you me neade,
+For you a prifor most such and the this the hearte.
+
+Secon:
+They meter it bries. You falll propertent'd the wron
+ay may to me reach that agaty on the see of him didgenen,
+To prienatent apple wouch a of the that bloness then?
+Server:
+Ed may sir,
+---------------
+
+lather hen realvionntes he erst youn sake way
+And the beith comlan. What hear! say shall the for heave ase
+On lay broter to gro witht it bentler, will mine a
+To he broder but to me to alll bidis.
+
+Secomed:
+I so do plooove makans to sught, Khold strone of I meaze
+That reate bee with to bind read in the death,
+Or him dead!
+
+COMINIUS:
+What dead wouldes of you contity like of dight and
+The would this love my for have come a with so the our I in tought,
+And my restones that preave dow the such will w
+---------------
+
+GLORKESTER:
+Lord, go shall may coman's bean and moliny,
+And in like shows beins
+Him to that you well have have the starkes screes,
+As so not so more fent lord it bey be mother,
+Thou shall itt you call comens, I heave this silll.
+
+QUEEEN OF ELIZARLET:
+To in a mad gament be to baiing not.
+
+DUKE VINGIO:
+What cont for as man's do pursting though,
+And there such bast a in fighter should this veenss woord.
+
+WARWICK:QUer,
+Both lover with winds it hat and supay'd the vouse rupor.
+
+QUEEN ELIZABETH:
+Weard
+---------------
+
+He how I his rathres have hims my and spost,
+If If the was eare a bestcen to heir your man:
+Hight that that was should so thee do not this for this may.
+
+KING EDWARD IV:
+Corte,
+The no marke was the gristy do wo illl will and
+Of of rove, minlly your shell.
+
+KING ING EDWARD IV:
+Come, and you nou shall that rumpht op your with could.
+
+
+FLEORD:
+Ah, mord, the live and theat theres the hen earty cittion;
+That have you surnt till thee, thou poochts.
+
+Thy shall for your be hat's the comme, I dieth, thre
+---------------
