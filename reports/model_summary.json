@@ -1,0 +1,28 @@
+{
+  "config": {
+    "block_size": 1024,
+    "vocab_size": 50304,
+    "n_layer": 12,
+    "n_head": 12,
+    "n_embd": 768,
+    "dropout": 0.0,
+    "bias": true
+  },
+  "parameters": {
+    "total_parameters": 124475904,
+    "parameter_memory_bytes": 497903616,
+    "parameter_memory_mb": 474.837890625
+  },
+  "component_parameters": {
+    "token_embedding": 38633472,
+    "position_embedding": 786432,
+    "attention": 28348416,
+    "mlp": 56669184,
+    "layernorm": 38400
+  },
+  "weight_tying": {
+    "token_embedding_and_lm_head_share_parameter_object": true,
+    "token_embedding_and_lm_head_share_memory": true,
+    "token_embedding_and_lm_head_values_equal": true
+  }
+}
