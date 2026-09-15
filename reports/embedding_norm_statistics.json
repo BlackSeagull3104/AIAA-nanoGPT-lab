@@ -1,0 +1,65 @@
+{
+  "experiment": {
+    "seed": 42,
+    "text_source": "data/task4_samples.txt",
+    "number_of_samples": 10,
+    "sequence_length": 40,
+    "tokenizer": "GPT-2 tiktoken",
+    "comparison": "random GPT-2 vs pretrained GPT-2",
+    "architecture": {
+      "block_size": 1024,
+      "vocab_size": 50257,
+      "n_layer": 12,
+      "n_head": 12,
+      "n_embd": 768
+    }
+  },
+  "random_gpt2": {
+    "token_embedding": {
+      "mean": 0.5553929805755615,
+      "median": 0.5565329194068909,
+      "std": 0.012632823549211025,
+      "p5": 0.5314091444015503,
+      "p95": 0.5783728361129761
+    },
+    "token_plus_position": {
+      "mean": 0.7823635339736938,
+      "median": 0.7822981476783752,
+      "std": 0.01910179667174816,
+      "p5": 0.75075364112854,
+      "p95": 0.8125059604644775
+    },
+    "after_embedding_dropout": {
+      "mean": 0.7823635339736938,
+      "median": 0.7822981476783752,
+      "std": 0.01910179667174816,
+      "p5": 0.75075364112854,
+      "p95": 0.8125059604644775
+    },
+    "dropout_identical_in_eval": true
+  },
+  "pretrained_gpt2": {
+    "token_embedding": {
+      "mean": 3.150752067565918,
+      "median": 3.077721357345581,
+      "std": 0.4860890209674835,
+      "p5": 2.5726735591888428,
+      "p95": 4.065443992614746
+    },
+    "token_plus_position": {
+      "mean": 5.067468643188477,
+      "median": 4.854516983032227,
+      "std": 0.9634954333305359,
+      "p5": 4.454529762268066,
+      "p95": 6.011623382568359
+    },
+    "after_embedding_dropout": {
+      "mean": 5.067468643188477,
+      "median": 4.854516983032227,
+      "std": 0.9634954333305359,
+      "p5": 4.454529762268066,
+      "p95": 6.011623382568359
+    },
+    "dropout_identical_in_eval": true
+  }
+}
