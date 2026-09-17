@@ -1,0 +1,14 @@
+{
+  "device": "cuda",
+  "seed": 1337,
+  "prompt": "First Citizen:",
+  "num_samples": 5,
+  "max_new_tokens": 200,
+  "temperature": 0.8,
+  "top_k": 20,
+  "total_generated_tokens": 1000,
+  "elapsed_seconds": 4.811266537000051,
+  "generation_speed_tokens_per_second": 207.84547941996283,
+  "peak_vram_bytes": 15729152,
+  "peak_vram_mb": 15.00048828125
+}
