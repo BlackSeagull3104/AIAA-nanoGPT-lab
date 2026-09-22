@@ -1,0 +1,89 @@
+{
+  "task": "Task 11 - Small Instruct Model Comparison",
+  "models": {
+    "instruct_model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "base_model": "openai-community/gpt2"
+  },
+  "generation_settings": {
+    "max_new_tokens": 256,
+    "do_sample": false,
+    "decoding": "greedy"
+  },
+  "questions": [
+    "请用简单的语言解释什么是机器学习。",
+    "中国的首都是哪里？请用一句话回答。",
+    "请列出三个学习编程的建议。",
+    "为什么天空看起来是蓝色的？请简要解释。",
+    "请把“Artificial intelligence is changing the world.”翻译成中文。"
+  ],
+  "qwen_results": [
+    {
+      "question_id": 1,
+      "question": "请用简单的语言解释什么是机器学习。",
+      "answer": "机器学习是一种人工智能的分支，它使计算机能够通过数据自动改进和优化自己的性能。简单来说，就是让计算机从大量数据中学习并应用这些知识来做出预测或决策。\n\n在机器学习中，算法被设计成可以从输入的数据中提取特征，并使用这些特征来预测输出的结果。这种能力使得机器学习能够在没有明确编程的情况下进行自我学习和适应，从而提高处理复杂问题的能力。\n\n机器学习的应用非常广泛，包括但不限于图像识别、语音识别、自然语言处理等。随着技术的发展，机器学习已经在许多领域取得了显著的进步，如医疗诊断、自动驾驶汽车、金融分析等领域。",
+      "generated_token_count": 132
+    },
+    {
+      "question_id": 2,
+      "question": "中国的首都是哪里？请用一句话回答。",
+      "answer": "中国的首都是北京。",
+      "generated_token_count": 6
+    },
+    {
+      "question_id": 3,
+      "question": "请列出三个学习编程的建议。",
+      "answer": "1. 选择合适的编程语言：首先，你需要确定你想要学习哪种编程语言。不同的编程语言适用于不同的需求和目标。\n\n2. 学习基础知识：在开始学习编程之前，确保你对计算机科学的基础有基本的理解。这包括了解数据结构、算法、控制流等概念。\n\n3. 实践是关键：实践是学习编程最重要的方法之一。通过编写代码来解决问题，并不断练习，可以帮助你更好地理解和掌握编程技能。同时，也可以帮助你在实际项目中应用所学知识。",
+      "generated_token_count": 110
+    },
+    {
+      "question_id": 4,
+      "question": "为什么天空看起来是蓝色的？请简要解释。",
+      "answer": "天空之所以呈现蓝色，是因为太阳光在穿过地球大气层时，被不同颜色的气体分子散射和吸收所影响的结果。具体来说：\n\n1. **红外线**：太阳发出的红外线波长较长，比可见光短得多。当这些红外线照射到空气中的水蒸气、二氧化碳等气体分子上时，它们会与这些分子发生相互作用，导致部分能量被分子吸收并重新发射出去。\n\n2. **紫外线**：太阳发出的紫外线也会影响大气中的气体分子，但其强度较弱，对大气层的影响相对较小。\n\n3. **散射现象**：由于大气中各种气体（如氮气、氧气、水汽）的存在，它们能够散射太阳光中的某些波长更长的光线，而使其他波长的光线更容易通过。这使得我们看到的天空呈现出蓝色或紫色。\n\n4. **反射效应**：当阳光经过大气层时，一部分光线会被大气中的尘埃、云块和其他微小颗粒反射回来，这部分光线的颜色可能会变深，从而形成所谓的“彩虹”。\n\n综上所述，天空之所以呈现蓝色，主要是因为太阳光在穿过大气层时，被不同颜色的气体分子散射和",
+      "generated_token_count": 256
+    },
+    {
+      "question_id": 5,
+      "question": "请把“Artificial intelligence is changing the world.”翻译成中文。",
+      "answer": "人工智能正在改变世界。",
+      "generated_token_count": 6
+    }
+  ],
+  "gpt2_results": [
+    {
+      "question_id": 1,
+      "question": "请用简单的语言解释什么是机器学习。",
+      "answer": "\"I'm not sure if you're right, but I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're",
+      "generated_token_count": 256
+    },
+    {
+      "question_id": 2,
+      "question": "中国的首都是哪里？请用一句话回答。",
+      "answer": "\"I'm not sure if you're right, but I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're",
+      "generated_token_count": 256
+    },
+    {
+      "question_id": 3,
+      "question": "请列出三个学习编程的建议。",
+      "answer": "\"I'm not sure if you're right, but I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're right. I'm sure you're",
+      "generated_token_count": 256
+    },
+    {
+      "question_id": 4,
+      "question": "为什么天空看起来是蓝色的？请简要解释。",
+      "answer": "\"I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not sure what you're talking about. I'm not",
+      "generated_token_count": 256
+    },
+    {
+      "question_id": 5,
+      "question": "请把“Artificial intelligence is changing the world.”翻译成中文。",
+      "answer": "The world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world is changing.\n\nThe world",
+      "generated_token_count": 256
+    }
+  ],
+  "comparison": {
+    "instruction_following": "Qwen2.5-0.5B-Instruct generally follows the requested tasks, including explanation, concise answering, listing, and translation. GPT-2 largely behaves as a text-continuation model rather than following the Chinese instructions. Qwen is not perfect: for the question requesting a brief explanation of why the sky is blue, it produces an overly long response and reaches the generation-length limit.",
+    "chinese_expression": "Qwen produces fluent and coherent Chinese responses across the five questions. GPT-2 produces little useful Chinese and mostly generates repetitive English text for these Chinese prompts.",
+    "answer_completeness": "Qwen provides complete answers for most questions and directly addresses the requested tasks. Its response to the sky-color question is overlong and is truncated by the token limit. GPT-2 generally does not provide complete answers to the questions and often falls into repetitive generation loops."
+  },
+  "note": "This task compares generation behavior only. Validation loss is not compared."
+}
