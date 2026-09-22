@@ -1,0 +1,149 @@
+{
+  "task": "Task 12 - Prepare GPT-2 BPE Shakespeare Data",
+  "tokenizer": {
+    "encoding": "gpt2",
+    "algorithm": "byte-level BPE",
+    "vocabulary_size": 50257
+  },
+  "dataset_statistics": {
+    "train": {
+      "token_count": 301966,
+      "unique_token_count": 11234,
+      "file_size_bytes": 603932
+    },
+    "validation": {
+      "token_count": 36059,
+      "unique_token_count": 3999,
+      "file_size_bytes": 72118
+    }
+  },
+  "top_20_train_tokens": [
+    {
+      "rank": 1,
+      "token_id": 198,
+      "token_text": "\n",
+      "count": 35521
+    },
+    {
+      "rank": 2,
+      "token_id": 11,
+      "token_text": ",",
+      "count": 17652
+    },
+    {
+      "rank": 3,
+      "token_id": 25,
+      "token_text": ":",
+      "count": 9022
+    },
+    {
+      "rank": 4,
+      "token_id": 13,
+      "token_text": ".",
+      "count": 6891
+    },
+    {
+      "rank": 5,
+      "token_id": 262,
+      "token_text": " the",
+      "count": 4888
+    },
+    {
+      "rank": 6,
+      "token_id": 284,
+      "token_text": " to",
+      "count": 3714
+    },
+    {
+      "rank": 7,
+      "token_id": 290,
+      "token_text": " and",
+      "count": 3294
+    },
+    {
+      "rank": 8,
+      "token_id": 26,
+      "token_text": ";",
+      "count": 3230
+    },
+    {
+      "rank": 9,
+      "token_id": 314,
+      "token_text": " I",
+      "count": 3198
+    },
+    {
+      "rank": 10,
+      "token_id": 286,
+      "token_text": " of",
+      "count": 3031
+    },
+    {
+      "rank": 11,
+      "token_id": 345,
+      "token_text": " you",
+      "count": 2446
+    },
+    {
+      "rank": 12,
+      "token_id": 616,
+      "token_text": " my",
+      "count": 2390
+    },
+    {
+      "rank": 13,
+      "token_id": 257,
+      "token_text": " a",
+      "count": 2334
+    },
+    {
+      "rank": 14,
+      "token_id": 30,
+      "token_text": "?",
+      "count": 2141
+    },
+    {
+      "rank": 15,
+      "token_id": 40,
+      "token_text": "I",
+      "count": 1956
+    },
+    {
+      "rank": 16,
+      "token_id": 287,
+      "token_text": " in",
+      "count": 1946
+    },
+    {
+      "rank": 17,
+      "token_id": 338,
+      "token_text": "'s",
+      "count": 1880
+    },
+    {
+      "rank": 18,
+      "token_id": 0,
+      "token_text": "!",
+      "count": 1855
+    },
+    {
+      "rank": 19,
+      "token_id": 326,
+      "token_text": " that",
+      "count": 1793
+    },
+    {
+      "rank": 20,
+      "token_id": 1870,
+      "token_text": "And",
+      "count": 1696
+    }
+  ],
+  "tokenizer_consistency_check": {
+    "tiktoken_vocab_size": 50257,
+    "hf_vocab_size": 50257,
+    "num_random_samples": 5,
+    "all_ids_match": true
+  },
+  "conclusion": "The Tiny Shakespeare dataset was encoded using the GPT-2 byte-level BPE tokenizer. The training split contains 301,966 tokens and the validation split contains 36,059 tokens. The token IDs produced by tiktoken and the Hugging Face GPT-2 tokenizer matched exactly for all five randomly sampled text segments."
+}
