@@ -10,3 +10,7 @@ __pycache__/
 input.txt
 env/
 venv/
+# HPC / Slurm runtime files
+*.out
+*.err
+*.bak_task13

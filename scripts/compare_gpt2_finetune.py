@@ -101,6 +101,10 @@ def get_batch(data):
 def estimate_validation_loss(model):
     import numpy as np
 
+    torch.manual_seed(SEED)
+    if DEVICE == "cuda":
+        torch.cuda.manual_seed(SEED)
+
     val_path = os.path.join(DATA_DIR, "val.bin")
     data = np.memmap(val_path, dtype=np.uint16, mode="r")
 
@@ -232,7 +236,7 @@ def main():
     after["checkpoint"] = {
         "path": CHECKPOINT,
         "iter_num": checkpoint.get("iter_num"),
-        "best_val_loss": checkpoint.get("best_val_loss"),
+        "best_val_loss": float(checkpoint.get("best_val_loss")),
     }
 
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
