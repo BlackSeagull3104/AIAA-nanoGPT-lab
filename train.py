@@ -43,8 +43,15 @@ init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 wandb_log = False # disabled by default
 wandb_project = 'owt'
 wandb_run_name = 'gpt2' # 'run' + str(time.time())
+wandb_tags = '' # optional comma-separated tags; inferred from init_from when empty
+wandb_prompts = 'First Citizen:|ROMEO:|JULIET:' # fixed prompts separated by |
+wandb_generate_tokens = 64
+wandb_table_top_k = 100
+wandb_token_frequency_chunk_size = 1_000_000
+wandb_artifact_name = 'nanogpt-best-checkpoint'
 # data
 dataset = 'openwebtext'
+tokenizer_type = 'auto' # 'auto', 'character', or 'gpt2'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 12 # if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 1024
@@ -72,6 +79,7 @@ backend = 'nccl' # 'nccl', 'gloo', etc.
 device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
 dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
 compile = True # use PyTorch 2.0 to compile the model to be faster
+seed = 1337
 # -----------------------------------------------------------------------------
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
 exec(open('configurator.py').read()) # overrides from command line or config file
@@ -103,7 +111,7 @@ print(f"tokens per iteration will be: {tokens_per_iter:,}")
 
 if master_process:
     os.makedirs(out_dir, exist_ok=True)
-torch.manual_seed(1337 + seed_offset)
+torch.manual_seed(seed + seed_offset)
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
@@ -137,6 +145,7 @@ best_val_loss = 1e9
 # attempt to derive vocab_size from the dataset
 meta_path = os.path.join(data_dir, 'meta.pkl')
 meta_vocab_size = None
+meta = None
 if os.path.exists(meta_path):
     with open(meta_path, 'rb') as f:
         meta = pickle.load(f)
@@ -192,6 +201,7 @@ if block_size < model.config.block_size:
     model_args['block_size'] = block_size # so that the checkpoint will have the right value
 num_params = sum(p.numel() for p in model.parameters())
 model.to(device)
+analysis_model = model # unwrapped model used for read-only W&B analysis
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
 scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
@@ -201,6 +211,7 @@ optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta
 if init_from == 'resume':
     optimizer.load_state_dict(checkpoint['optimizer'])
 checkpoint = None # free up memory
+best_artifact_val_loss = best_val_loss # logging-only threshold; does not affect checkpoints
 
 # compile the model
 if compile:
@@ -245,17 +256,160 @@ def get_lr(it):
 # logging
 if wandb_log and master_process:
     import wandb
+
+    resolved_tokenizer_type = tokenizer_type
+    if resolved_tokenizer_type == 'auto':
+        resolved_tokenizer_type = (
+            'character'
+            if meta is not None and 'stoi' in meta and 'itos' in meta
+            else 'gpt2'
+        )
+
+    if resolved_tokenizer_type == 'character':
+        if meta is None or 'stoi' not in meta or 'itos' not in meta:
+            raise ValueError('character tokenizer requires stoi and itos in meta.pkl')
+        stoi, itos = meta['stoi'], meta['itos']
+        encode_text = lambda text: [stoi[char] for char in text]
+        decode_tokens = lambda token_ids: ''.join(itos[token_id] for token_id in token_ids)
+        display_token = lambda token_id: repr(itos.get(token_id, f'<{token_id}>'))
+    elif resolved_tokenizer_type == 'gpt2':
+        import tiktoken
+        tokenizer = tiktoken.get_encoding('gpt2')
+        encode_text = lambda text: tokenizer.encode(text, allowed_special={'<|endoftext|>'})
+
+        def token_bytes(token_id):
+            try:
+                return tokenizer.decode_single_token_bytes(token_id)
+            except KeyError:
+                return f'<token:{token_id}>'.encode()
+
+        decode_tokens = lambda token_ids: b''.join(
+            token_bytes(token_id) for token_id in token_ids
+        ).decode('utf-8', errors='replace')
+        display_token = lambda token_id: repr(
+            token_bytes(token_id).decode('utf-8', errors='replace')
+        )
+    else:
+        raise ValueError(f"unsupported tokenizer_type: {resolved_tokenizer_type}")
+
+    if wandb_tags:
+        run_tags = [tag.strip() for tag in wandb_tags.split(',') if tag.strip()]
+    elif init_from == 'scratch':
+        run_tags = ['scratch']
+    elif init_from == 'resume':
+        run_tags = ['resume']
+    elif init_from.startswith('gpt2'):
+        run_tags = ['gpt2'] if eval_only else ['gpt2-finetune']
+    else:
+        run_tags = [init_from]
+
     wandb_config = config.copy()
     wandb_config.update({
         'model/architecture': 'GPT',
         'model/num_parameters': num_params,
         'model/config': model_args,
+        'model/n_layer': model_args['n_layer'],
+        'model/n_head': model_args['n_head'],
+        'model/n_embd': model_args['n_embd'],
+        'model/block_size': model_args['block_size'],
+        'model/vocab_size': model_args['vocab_size'],
+        'model/bias': model_args['bias'],
+        'model/dropout': model_args['dropout'],
+        'experiment/dataset': dataset,
+        'experiment/tokenizer_type': resolved_tokenizer_type,
+        'experiment/seed': seed,
+        'experiment/batch_size': batch_size,
+        'experiment/gradient_accumulation_steps': config['gradient_accumulation_steps'],
+        'experiment/learning_rate': learning_rate,
+        'experiment/max_iters': max_iters,
+        'runtime/requested_device': config['device'],
+        'runtime/device': device,
+        'runtime/device_type': device_type,
+        'runtime/ddp': ddp,
+        'runtime/ddp_world_size': ddp_world_size,
+        'runtime/gradient_accumulation_steps_per_rank': gradient_accumulation_steps,
     })
-    wandb.init(project=wandb_project, name=wandb_run_name, config=wandb_config)
+    wandb.init(
+        project=wandb_project,
+        name=wandb_run_name,
+        config=wandb_config,
+        tags=run_tags,
+    )
+
+    def create_token_frequency_table():
+        train_data = np.memmap(
+            os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r'
+        )
+        counts = np.zeros(model_args['vocab_size'], dtype=np.int64)
+        for start in range(0, len(train_data), wandb_token_frequency_chunk_size):
+            chunk = train_data[start:start + wandb_token_frequency_chunk_size]
+            counts += np.bincount(chunk, minlength=model_args['vocab_size'])
+        nonzero_ids = np.flatnonzero(counts)
+        top_k = max(0, min(wandb_table_top_k, len(nonzero_ids)))
+        top_ids = (
+            nonzero_ids[np.argsort(counts[nonzero_ids])[-top_k:][::-1]]
+            if top_k > 0 else []
+        )
+        table = wandb.Table(
+            columns=['token_id', 'token', 'count', 'relative_frequency']
+        )
+        total_tokens = len(train_data)
+        for token_id in top_ids:
+            token_id = int(token_id)
+            table.add_data(
+                token_id,
+                display_token(token_id),
+                int(counts[token_id]),
+                float(counts[token_id] / total_tokens),
+            )
+        return table
+
+    def create_embedding_norm_table():
+        embedding_norms = torch.linalg.vector_norm(
+            analysis_model.transformer.wte.weight.detach().float(), dim=1
+        ).cpu()
+        top_k = max(0, min(wandb_table_top_k, embedding_norms.numel()))
+        top_norms, top_ids = torch.topk(embedding_norms, top_k)
+        table = wandb.Table(columns=['token_id', 'token', 'l2_norm'])
+        for token_id, norm in zip(top_ids.tolist(), top_norms.tolist()):
+            table.add_data(token_id, display_token(token_id), norm)
+        return table
+
+    @torch.no_grad()
+    def create_generation_table(step):
+        prompts = [prompt for prompt in wandb_prompts.split('|') if prompt]
+        table = wandb.Table(columns=['prompt', 'generated_text', 'training_step'])
+        was_training = analysis_model.training
+        analysis_model.eval()
+        try:
+            for prompt in prompts:
+                try:
+                    prompt_ids = encode_text(prompt)
+                except (KeyError, ValueError) as exc:
+                    table.add_data(prompt, f'[prompt cannot be encoded: {exc}]', step)
+                    continue
+                generated = torch.tensor(
+                    prompt_ids, dtype=torch.long, device=device
+                )[None, ...]
+                for _ in range(wandb_generate_tokens):
+                    generated_context = generated[:, -analysis_model.config.block_size:]
+                    with ctx:
+                        logits, _ = analysis_model(generated_context)
+                    next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
+                    generated = torch.cat((generated, next_token), dim=1)
+                table.add_data(
+                    prompt,
+                    decode_tokens(generated[0].tolist()),
+                    step,
+                )
+        finally:
+            analysis_model.train(was_training)
+        return table
+
+    wandb.log({'analysis/token_frequency': create_token_frequency_table()})
 
 # training loop
 X, Y = get_batch('train') # fetch the very first batch
-t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
 running_mfu = -1.0
@@ -277,8 +431,12 @@ while True:
                 "val/loss": losses['val'],
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
+                "analysis/embedding_norms": create_embedding_norm_table(),
+                "samples/generated_text": create_generation_table(iter_num),
             })
-        if losses['val'] < best_val_loss or always_save_checkpoint:
+        is_better_val_loss = losses['val'] < best_val_loss
+        is_best_artifact = losses['val'] < best_artifact_val_loss
+        if is_better_val_loss or always_save_checkpoint:
             best_val_loss = losses['val']
             if iter_num > 0:
                 checkpoint = {
@@ -290,10 +448,29 @@ while True:
                     'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+                checkpoint_path = os.path.join(out_dir, 'ckpt.pt')
+                torch.save(checkpoint, checkpoint_path)
+                if wandb_log and is_best_artifact:
+                    try:
+                        artifact = wandb.Artifact(
+                            wandb_artifact_name,
+                            type='model',
+                            metadata={
+                                'iter': iter_num,
+                                'val_loss': float(losses['val']),
+                            },
+                        )
+                        artifact.add_file(checkpoint_path, name='ckpt.pt')
+                        wandb.log_artifact(artifact, aliases=['best'])
+                    except Exception as exc:
+                        print(f"warning: failed to upload checkpoint artifact: {exc}")
+                if is_best_artifact:
+                    best_artifact_val_loss = losses['val']
     if iter_num == 0 and eval_only:
         break
 
+    # Start timing after evaluation and W&B analysis so dt measures the optimizer iteration.
+    t0 = time.time()
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     # and using the GradScaler if data type is float16
     for micro_step in range(gradient_accumulation_steps):
@@ -314,7 +491,7 @@ while True:
     if grad_clip != 0.0:
         scaler.unscale_(optimizer)
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-    elif iter_num % log_interval == 0 and wandb_log and master_process:
+    elif wandb_log and master_process:
         # GradScaler gradients must be unscaled before their norm is meaningful.
         scaler.unscale_(optimizer)
         grad_norms = [
@@ -332,28 +509,30 @@ while True:
     # timing and logging
     t1 = time.time()
     dt = t1 - t0
-    t0 = t1
-    if iter_num % log_interval == 0 and master_process:
+    should_print = iter_num % log_interval == 0 and master_process
+    should_log_wandb = wandb_log and master_process
+    if should_print or should_log_wandb:
         # get loss as float. note: this is a CPU-GPU sync point
         # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
         lossf = loss.item() * gradient_accumulation_steps
+    if should_print:
         if local_iter_num >= 5: # let the training loop settle a bit
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9*running_mfu + 0.1*mfu
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
-        if wandb_log:
-            iteration_metrics = {
-                'iter': iter_num,
-                'train/iter_loss': lossf,
-                'train/grad_norm': grad_norm.item(),
-                'performance/iter_time_ms': dt * 1000,
-                'performance/tokens_per_sec': tokens_per_iter / dt,
-            }
-            if device_type == 'cuda':
-                iteration_metrics['system/gpu_memory_allocated_mb'] = (
-                    torch.cuda.memory_allocated(device) / (1024 ** 2)
-                )
-            wandb.log(iteration_metrics)
+    if should_log_wandb:
+        iteration_metrics = {
+            'iter': iter_num,
+            'train/iter_loss': lossf,
+            'train/grad_norm': grad_norm.item(),
+            'performance/iter_time_ms': dt * 1000,
+            'performance/tokens_per_sec': tokens_per_iter / dt,
+        }
+        if device_type == 'cuda':
+            iteration_metrics['system/gpu_memory_allocated_mb'] = (
+                torch.cuda.memory_allocated(device) / (1024 ** 2)
+            )
+        wandb.log(iteration_metrics)
     iter_num += 1
     local_iter_num += 1
 
