@@ -190,6 +190,7 @@ elif init_from.startswith('gpt2'):
 if block_size < model.config.block_size:
     model.crop_block_size(block_size)
     model_args['block_size'] = block_size # so that the checkpoint will have the right value
+num_params = sum(p.numel() for p in model.parameters())
 model.to(device)
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
@@ -244,7 +245,13 @@ def get_lr(it):
 # logging
 if wandb_log and master_process:
     import wandb
-    wandb.init(project=wandb_project, name=wandb_run_name, config=config)
+    wandb_config = config.copy()
+    wandb_config.update({
+        'model/architecture': 'GPT',
+        'model/num_parameters': num_params,
+        'model/config': model_args,
+    })
+    wandb.init(project=wandb_project, name=wandb_run_name, config=wandb_config)
 
 # training loop
 X, Y = get_batch('train') # fetch the very first batch
@@ -306,7 +313,16 @@ while True:
     # clip the gradient
     if grad_clip != 0.0:
         scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+    elif iter_num % log_interval == 0 and wandb_log and master_process:
+        # GradScaler gradients must be unscaled before their norm is meaningful.
+        scaler.unscale_(optimizer)
+        grad_norms = [
+            torch.linalg.vector_norm(p.grad.detach(), 2)
+            for p in model.parameters()
+            if p.grad is not None
+        ]
+        grad_norm = torch.linalg.vector_norm(torch.stack(grad_norms), 2)
     # step the optimizer and scaler if training in fp16
     scaler.step(optimizer)
     scaler.update()
@@ -325,6 +341,19 @@ while True:
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9*running_mfu + 0.1*mfu
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
+        if wandb_log:
+            iteration_metrics = {
+                'iter': iter_num,
+                'train/iter_loss': lossf,
+                'train/grad_norm': grad_norm.item(),
+                'performance/iter_time_ms': dt * 1000,
+                'performance/tokens_per_sec': tokens_per_iter / dt,
+            }
+            if device_type == 'cuda':
+                iteration_metrics['system/gpu_memory_allocated_mb'] = (
+                    torch.cuda.memory_allocated(device) / (1024 ** 2)
+                )
+            wandb.log(iteration_metrics)
     iter_num += 1
     local_iter_num += 1
 
