@@ -46,6 +46,7 @@ wandb_run_name = 'gpt2' # 'run' + str(time.time())
 wandb_tags = '' # optional comma-separated tags; inferred from init_from when empty
 wandb_prompts = 'First Citizen:|ROMEO:|JULIET:' # fixed prompts separated by |
 wandb_generate_tokens = 64
+wandb_compare_samples = False # collect one before/after table for scratch experiments
 wandb_table_top_k = 100
 wandb_token_frequency_chunk_size = 1_000_000
 wandb_artifact_name = 'nanogpt-best-checkpoint'
@@ -376,9 +377,8 @@ if wandb_log and master_process:
         return table
 
     @torch.no_grad()
-    def create_generation_table(step):
+    def add_generation_samples(table, step, stage=None):
         prompts = [prompt for prompt in wandb_prompts.split('|') if prompt]
-        table = wandb.Table(columns=['prompt', 'generated_text', 'training_step'])
         was_training = analysis_model.training
         analysis_model.eval()
         try:
@@ -386,7 +386,11 @@ if wandb_log and master_process:
                 try:
                     prompt_ids = encode_text(prompt)
                 except (KeyError, ValueError) as exc:
-                    table.add_data(prompt, f'[prompt cannot be encoded: {exc}]', step)
+                    generated_text = f'[prompt cannot be encoded: {exc}]'
+                    if stage is None:
+                        table.add_data(prompt, generated_text, step)
+                    else:
+                        table.add_data(prompt, generated_text, stage, step)
                     continue
                 generated = torch.tensor(
                     prompt_ids, dtype=torch.long, device=device
@@ -397,14 +401,25 @@ if wandb_log and master_process:
                         logits, _ = analysis_model(generated_context)
                     next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
                     generated = torch.cat((generated, next_token), dim=1)
-                table.add_data(
-                    prompt,
-                    decode_tokens(generated[0].tolist()),
-                    step,
-                )
+                generated_text = decode_tokens(generated[0].tolist())
+                if stage is None:
+                    table.add_data(prompt, generated_text, step)
+                else:
+                    table.add_data(prompt, generated_text, stage, step)
         finally:
             analysis_model.train(was_training)
         return table
+
+    def create_generation_table(step):
+        table = wandb.Table(columns=['prompt', 'generated_text', 'training_step'])
+        return add_generation_samples(table, step)
+
+    comparison_samples_table = None
+    if wandb_compare_samples:
+        comparison_samples_table = wandb.Table(
+            columns=['prompt', 'generated_text', 'training_stage', 'training_step']
+        )
+        add_generation_samples(comparison_samples_table, iter_num, stage='before')
 
     wandb.log({'analysis/token_frequency': create_token_frequency_table()})
 
@@ -425,15 +440,17 @@ while True:
         losses = estimate_loss()
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         if wandb_log:
-            wandb.log({
+            evaluation_metrics = {
                 "iter": iter_num,
                 "train/loss": losses['train'],
                 "val/loss": losses['val'],
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
                 "analysis/embedding_norms": create_embedding_norm_table(),
-                "samples/generated_text": create_generation_table(iter_num),
-            })
+            }
+            if not wandb_compare_samples:
+                evaluation_metrics["samples/generated_text"] = create_generation_table(iter_num)
+            wandb.log(evaluation_metrics)
         is_better_val_loss = losses['val'] < best_val_loss
         is_best_artifact = losses['val'] < best_artifact_val_loss
         if is_better_val_loss or always_save_checkpoint:
@@ -460,6 +477,7 @@ while True:
                                 'val_loss': float(losses['val']),
                                 'dataset': dataset,
                                 'num_parameters': num_params,
+                                'model_config': model_args,
                             },
                         )
                         artifact.add_file(checkpoint_path, name='ckpt.pt')
@@ -541,6 +559,12 @@ while True:
     # termination conditions
     if iter_num > max_iters:
         break
+
+if wandb_log and master_process and wandb_compare_samples:
+    add_generation_samples(
+        comparison_samples_table, iter_num, stage='after'
+    )
+    wandb.log({'samples/before_after': comparison_samples_table})
 
 if ddp:
     destroy_process_group()
