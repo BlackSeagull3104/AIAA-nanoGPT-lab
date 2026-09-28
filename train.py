@@ -458,6 +458,8 @@ while True:
                             metadata={
                                 'iter': iter_num,
                                 'val_loss': float(losses['val']),
+                                'dataset': dataset,
+                                'num_parameters': num_params,
                             },
                         )
                         artifact.add_file(checkpoint_path, name='ckpt.pt')
