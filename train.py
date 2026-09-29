@@ -50,6 +50,13 @@ wandb_compare_samples = False # collect one before/after table for scratch exper
 wandb_table_top_k = 100
 wandb_token_frequency_chunk_size = 1_000_000
 wandb_artifact_name = 'nanogpt-best-checkpoint'
+wandb_eval_tracking = False # add perplexity, inference speed, and peak memory
+wandb_hf_alignment = False # compare nanoGPT logits/token IDs with Hugging Face
+wandb_hf_model_name = 'openai-community/gpt2'
+wandb_alignment_prompt = 'To be, or not to be'
+wandb_alignment_tokens = 8
+wandb_log_eval_artifact = False
+wandb_eval_artifact_name = 'nanogpt-evaluation'
 # data
 dataset = 'openwebtext'
 tokenizer_type = 'auto' # 'auto', 'character', or 'gpt2'
@@ -414,6 +421,51 @@ if wandb_log and master_process:
         table = wandb.Table(columns=['prompt', 'generated_text', 'training_step'])
         return add_generation_samples(table, step)
 
+    @torch.no_grad()
+    def create_hf_alignment_table():
+        from transformers import GPT2LMHeadModel
+
+        prompt_ids = encode_text(wandb_alignment_prompt)
+        nano_ids = torch.tensor(prompt_ids, dtype=torch.long, device=device)[None, ...]
+        hf_ids = nano_ids.cpu()
+        hf_model = GPT2LMHeadModel.from_pretrained(wandb_hf_model_name)
+        hf_model.eval()
+
+        was_training = analysis_model.training
+        analysis_model.eval()
+        try:
+            nano_logits, _ = analysis_model(nano_ids)
+            hf_logits = hf_model(input_ids=hf_ids).logits[:, -1:, :]
+            logits_difference = (
+                nano_logits.detach().float().cpu() - hf_logits.float()
+            ).abs()
+
+            nano_generated = nano_ids
+            hf_generated = hf_ids
+            for _ in range(wandb_alignment_tokens):
+                nano_context = nano_generated[:, -analysis_model.config.block_size:]
+                nano_step_logits, _ = analysis_model(nano_context)
+                nano_next = torch.argmax(
+                    nano_step_logits[:, -1, :], dim=-1, keepdim=True
+                )
+                nano_generated = torch.cat((nano_generated, nano_next), dim=1)
+
+                hf_step_logits = hf_model(input_ids=hf_generated).logits
+                hf_next = torch.argmax(
+                    hf_step_logits[:, -1, :], dim=-1, keepdim=True
+                )
+                hf_generated = torch.cat((hf_generated, hf_next), dim=1)
+        finally:
+            analysis_model.train(was_training)
+
+        nano_new_tokens = nano_generated[0, len(prompt_ids):].cpu().tolist()
+        hf_new_tokens = hf_generated[0, len(prompt_ids):].tolist()
+        table = wandb.Table(columns=['metric', 'value'])
+        table.add_data('max_logits_diff', str(logits_difference.max().item()))
+        table.add_data('mean_logits_diff', str(logits_difference.mean().item()))
+        table.add_data('token_match', str(nano_new_tokens == hf_new_tokens))
+        return table
+
     comparison_samples_table = None
     if wandb_compare_samples:
         comparison_samples_table = wandb.Table(
@@ -437,7 +489,17 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
+        measure_evaluation = wandb_log and wandb_eval_tracking
+        if measure_evaluation and device_type == 'cuda':
+            torch.cuda.reset_peak_memory_stats(device)
+            torch.cuda.synchronize(device)
+        evaluation_start = time.time() if measure_evaluation else None
         losses = estimate_loss()
+        if measure_evaluation and device_type == 'cuda':
+            torch.cuda.synchronize(device)
+        evaluation_seconds = (
+            time.time() - evaluation_start if measure_evaluation else None
+        )
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         if wandb_log:
             evaluation_metrics = {
@@ -448,9 +510,49 @@ while True:
                 "mfu": running_mfu*100, # convert to percentage
                 "analysis/embedding_norms": create_embedding_norm_table(),
             }
+            if wandb_eval_tracking:
+                evaluated_tokens = 2 * eval_iters * batch_size * block_size
+                val_loss = float(losses['val'])
+                evaluation_metrics.update({
+                    "eval/perplexity": math.exp(val_loss),
+                    "eval/num_parameters": num_params,
+                    "eval/inference_seconds": evaluation_seconds,
+                    "eval/inference_tokens_per_sec": (
+                        evaluated_tokens / evaluation_seconds
+                    ),
+                })
+                if device_type == 'cuda':
+                    evaluation_metrics["eval/gpu_peak_memory_mb"] = (
+                        torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+                    )
+            if wandb_hf_alignment:
+                evaluation_metrics["evaluation/hf_alignment"] = (
+                    create_hf_alignment_table()
+                )
             if not wandb_compare_samples:
                 evaluation_metrics["samples/generated_text"] = create_generation_table(iter_num)
             wandb.log(evaluation_metrics)
+            if wandb_log_eval_artifact:
+                try:
+                    val_loss = float(losses['val'])
+                    evaluation_artifact = wandb.Artifact(
+                        wandb_eval_artifact_name,
+                        type='evaluation',
+                        metadata={
+                            'model_name': init_from,
+                            'dataset': dataset,
+                            'tokenizer_type': resolved_tokenizer_type,
+                            'num_parameters': num_params,
+                            'validation_loss': val_loss,
+                        },
+                    )
+                    artifact_table = wandb.Table(columns=['metric', 'value'])
+                    artifact_table.add_data('validation_loss', val_loss)
+                    artifact_table.add_data('num_parameters', num_params)
+                    evaluation_artifact.add(artifact_table, 'evaluation_metrics')
+                    wandb.log_artifact(evaluation_artifact)
+                except Exception as exc:
+                    print(f"warning: failed to upload evaluation artifact: {exc}")
         is_better_val_loss = losses['val'] < best_val_loss
         is_best_artifact = losses['val'] < best_artifact_val_loss
         if is_better_val_loss or always_save_checkpoint:
