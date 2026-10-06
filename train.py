@@ -47,6 +47,9 @@ wandb_tags = '' # optional comma-separated tags; inferred from init_from when em
 wandb_prompts = 'First Citizen:|ROMEO:|JULIET:' # fixed prompts separated by |
 wandb_generate_tokens = 64
 wandb_compare_samples = False # collect one before/after table for scratch experiments
+wandb_log_generation_speed = False # add generation throughput to comparison tables
+wandb_before_stage = 'before'
+wandb_after_stage = 'after'
 wandb_table_top_k = 100
 wandb_token_frequency_chunk_size = 1_000_000
 wandb_artifact_name = 'nanogpt-best-checkpoint'
@@ -396,21 +399,42 @@ if wandb_log and master_process:
                     generated_text = f'[prompt cannot be encoded: {exc}]'
                     if stage is None:
                         table.add_data(prompt, generated_text, step)
+                    elif wandb_log_generation_speed:
+                        table.add_data(prompt, generated_text, stage, step, None)
                     else:
                         table.add_data(prompt, generated_text, stage, step)
                     continue
                 generated = torch.tensor(
                     prompt_ids, dtype=torch.long, device=device
                 )[None, ...]
+                if wandb_log_generation_speed and stage is not None:
+                    if device_type == 'cuda':
+                        torch.cuda.synchronize(device)
+                    generation_start = time.time()
                 for _ in range(wandb_generate_tokens):
                     generated_context = generated[:, -analysis_model.config.block_size:]
                     with ctx:
                         logits, _ = analysis_model(generated_context)
                     next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
                     generated = torch.cat((generated, next_token), dim=1)
+                if wandb_log_generation_speed and stage is not None:
+                    if device_type == 'cuda':
+                        torch.cuda.synchronize(device)
+                    generation_seconds = time.time() - generation_start
+                    generation_tokens_per_sec = (
+                        wandb_generate_tokens / generation_seconds
+                    )
                 generated_text = decode_tokens(generated[0].tolist())
                 if stage is None:
                     table.add_data(prompt, generated_text, step)
+                elif wandb_log_generation_speed:
+                    table.add_data(
+                        prompt,
+                        generated_text,
+                        stage,
+                        step,
+                        generation_tokens_per_sec,
+                    )
                 else:
                     table.add_data(prompt, generated_text, stage, step)
         finally:
@@ -468,10 +492,17 @@ if wandb_log and master_process:
 
     comparison_samples_table = None
     if wandb_compare_samples:
+        comparison_columns = [
+            'prompt', 'generated_text', 'training_stage', 'training_step'
+        ]
+        if wandb_log_generation_speed:
+            comparison_columns.append('generation_tokens_per_sec')
         comparison_samples_table = wandb.Table(
-            columns=['prompt', 'generated_text', 'training_stage', 'training_step']
+            columns=comparison_columns
         )
-        add_generation_samples(comparison_samples_table, iter_num, stage='before')
+        add_generation_samples(
+            comparison_samples_table, iter_num, stage=wandb_before_stage
+        )
 
     wandb.log({'analysis/token_frequency': create_token_frequency_table()})
 
@@ -664,7 +695,7 @@ while True:
 
 if wandb_log and master_process and wandb_compare_samples:
     add_generation_samples(
-        comparison_samples_table, iter_num, stage='after'
+        comparison_samples_table, iter_num, stage=wandb_after_stage
     )
     wandb.log({'samples/before_after': comparison_samples_table})
 
