@@ -43,6 +43,7 @@ init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 wandb_log = False # disabled by default
 wandb_project = 'owt'
 wandb_run_name = 'gpt2' # 'run' + str(time.time())
+wandb_group = '' # optional W&B group for related runs
 wandb_tags = '' # optional comma-separated tags; inferred from init_from when empty
 wandb_prompts = 'First Citizen:|ROMEO:|JULIET:' # fixed prompts separated by |
 wandb_generate_tokens = 64
@@ -50,6 +51,8 @@ wandb_compare_samples = False # collect one before/after table for scratch exper
 wandb_log_generation_speed = False # add generation throughput to comparison tables
 wandb_before_stage = 'before'
 wandb_after_stage = 'after'
+wandb_log_model_comparison = False # log a wide before/after prompt comparison table
+wandb_comparison_observation = '' # optional review note for the wide comparison table
 wandb_table_top_k = 100
 wandb_token_frequency_chunk_size = 1_000_000
 wandb_artifact_name = 'nanogpt-best-checkpoint'
@@ -60,6 +63,15 @@ wandb_alignment_prompt = 'To be, or not to be'
 wandb_alignment_tokens = 8
 wandb_log_eval_artifact = False
 wandb_eval_artifact_name = 'nanogpt-evaluation'
+wandb_log_checkpoint_artifact = True
+# LoRA is disabled by default, so existing nanoGPT runs keep identical behavior.
+lora_enabled = False
+lora_rank = 8
+lora_alpha = 16.0
+lora_dropout = 0.0
+lora_target_modules = 'attn.c_attn'
+lora_log_adapter_artifact = False
+lora_adapter_artifact_name = 'nanogpt-gpt2-lora-adapter'
 # data
 dataset = 'openwebtext'
 tokenizer_type = 'auto' # 'auto', 'character', or 'gpt2'
@@ -188,6 +200,10 @@ elif init_from == 'resume':
     # create the model
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
+    if lora_enabled:
+        if lora_target_modules != 'attn.c_attn':
+            raise ValueError(f"unsupported LoRA targets: {lora_target_modules}")
+        model.enable_lora(lora_rank, lora_alpha, lora_dropout)
     state_dict = checkpoint['model']
     # fix the keys of the state dictionary :(
     # honestly no idea how checkpoints sometimes get this prefix, have to debug more
@@ -203,6 +219,10 @@ elif init_from.startswith('gpt2'):
     # initialize from OpenAI GPT-2 weights
     override_args = dict(dropout=dropout)
     model = GPT.from_pretrained(init_from, override_args)
+    if lora_enabled:
+        if lora_target_modules != 'attn.c_attn':
+            raise ValueError(f"unsupported LoRA targets: {lora_target_modules}")
+        model.enable_lora(lora_rank, lora_alpha, lora_dropout)
     # read off the created config params, so we can store them into checkpoint correctly
     for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
         model_args[k] = getattr(model.config, k)
@@ -210,6 +230,25 @@ elif init_from.startswith('gpt2'):
 if block_size < model.config.block_size:
     model.crop_block_size(block_size)
     model_args['block_size'] = block_size # so that the checkpoint will have the right value
+if lora_enabled:
+    if not (init_from == 'resume' or init_from.startswith('gpt2')):
+        raise ValueError("LoRA training requires init_from='gpt2' or a LoRA checkpoint resume")
+    model.freeze_non_lora_parameters()
+    parameter_stats = model.get_parameter_stats()
+    trainable_parameter_names = [
+        name for name, parameter in model.named_parameters() if parameter.requires_grad
+    ]
+    print(
+        "LoRA parameters: "
+        f"total={parameter_stats['total_params']:,}, "
+        f"trainable={parameter_stats['trainable_params']:,} "
+        f"({parameter_stats['trainable_percentage']:.4f}%)"
+    )
+    print("trainable parameter names:")
+    for name in trainable_parameter_names:
+        print(f"  {name}")
+else:
+    parameter_stats = model.get_parameter_stats()
 num_params = sum(p.numel() for p in model.parameters())
 model.to(device)
 analysis_model = model # unwrapped model used for read-only W&B analysis
@@ -219,6 +258,16 @@ scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
 
 # optimizer
 optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device_type)
+optimizer_parameter_ids = {
+    id(parameter)
+    for group in optimizer.param_groups
+    for parameter in group['params']
+}
+trainable_parameter_ids = {
+    id(parameter) for parameter in model.parameters() if parameter.requires_grad
+}
+if optimizer_parameter_ids != trainable_parameter_ids:
+    raise RuntimeError("optimizer parameter groups do not exactly match trainable parameters")
 if init_from == 'resume':
     optimizer.load_state_dict(checkpoint['optimizer'])
 checkpoint = None # free up memory
@@ -318,6 +367,8 @@ if wandb_log and master_process:
     wandb_config.update({
         'model/architecture': 'GPT',
         'model/num_parameters': num_params,
+        'model/trainable_parameters': parameter_stats['trainable_params'],
+        'model/trainable_percentage': parameter_stats['trainable_percentage'],
         'model/config': model_args,
         'model/n_layer': model_args['n_layer'],
         'model/n_head': model_args['n_head'],
@@ -339,13 +390,21 @@ if wandb_log and master_process:
         'runtime/ddp': ddp,
         'runtime/ddp_world_size': ddp_world_size,
         'runtime/gradient_accumulation_steps_per_rank': gradient_accumulation_steps,
+        'lora/enabled': lora_enabled,
+        'lora/rank': lora_rank if lora_enabled else None,
+        'lora/alpha': lora_alpha if lora_enabled else None,
+        'lora/dropout': lora_dropout if lora_enabled else None,
+        'lora/target_modules': lora_target_modules if lora_enabled else None,
     })
     wandb.init(
         project=wandb_project,
         name=wandb_run_name,
+        group=wandb_group or None,
         config=wandb_config,
         tags=run_tags,
     )
+
+    latest_generation_tokens_per_sec = None
 
     def create_token_frequency_table():
         train_data = np.memmap(
@@ -388,7 +447,9 @@ if wandb_log and master_process:
 
     @torch.no_grad()
     def add_generation_samples(table, step, stage=None):
+        global latest_generation_tokens_per_sec
         prompts = [prompt for prompt in wandb_prompts.split('|') if prompt]
+        generation_speeds = []
         was_training = analysis_model.training
         analysis_model.eval()
         try:
@@ -398,7 +459,10 @@ if wandb_log and master_process:
                 except (KeyError, ValueError) as exc:
                     generated_text = f'[prompt cannot be encoded: {exc}]'
                     if stage is None:
-                        table.add_data(prompt, generated_text, step)
+                        if wandb_log_generation_speed:
+                            table.add_data(prompt, generated_text, step, None)
+                        else:
+                            table.add_data(prompt, generated_text, step)
                     elif wandb_log_generation_speed:
                         table.add_data(prompt, generated_text, stage, step, None)
                     else:
@@ -407,7 +471,7 @@ if wandb_log and master_process:
                 generated = torch.tensor(
                     prompt_ids, dtype=torch.long, device=device
                 )[None, ...]
-                if wandb_log_generation_speed and stage is not None:
+                if wandb_log_generation_speed:
                     if device_type == 'cuda':
                         torch.cuda.synchronize(device)
                     generation_start = time.time()
@@ -417,16 +481,22 @@ if wandb_log and master_process:
                         logits, _ = analysis_model(generated_context)
                     next_token = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
                     generated = torch.cat((generated, next_token), dim=1)
-                if wandb_log_generation_speed and stage is not None:
+                if wandb_log_generation_speed:
                     if device_type == 'cuda':
                         torch.cuda.synchronize(device)
                     generation_seconds = time.time() - generation_start
                     generation_tokens_per_sec = (
                         wandb_generate_tokens / generation_seconds
                     )
+                    generation_speeds.append(generation_tokens_per_sec)
                 generated_text = decode_tokens(generated[0].tolist())
                 if stage is None:
-                    table.add_data(prompt, generated_text, step)
+                    if wandb_log_generation_speed:
+                        table.add_data(
+                            prompt, generated_text, step, generation_tokens_per_sec
+                        )
+                    else:
+                        table.add_data(prompt, generated_text, step)
                 elif wandb_log_generation_speed:
                     table.add_data(
                         prompt,
@@ -439,10 +509,17 @@ if wandb_log and master_process:
                     table.add_data(prompt, generated_text, stage, step)
         finally:
             analysis_model.train(was_training)
+        if generation_speeds:
+            latest_generation_tokens_per_sec = (
+                sum(generation_speeds) / len(generation_speeds)
+            )
         return table
 
     def create_generation_table(step):
-        table = wandb.Table(columns=['prompt', 'generated_text', 'training_step'])
+        columns = ['prompt', 'generated_text', 'training_step']
+        if wandb_log_generation_speed:
+            columns.append('generation_tokens_per_sec')
+        table = wandb.Table(columns=columns)
         return add_generation_samples(table, step)
 
     @torch.no_grad()
@@ -511,6 +588,9 @@ X, Y = get_batch('train') # fetch the very first batch
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
 running_mfu = -1.0
+total_training_seconds = 0.0
+latest_training_tokens_per_sec = None
+max_evaluation_gpu_memory_mb = None
 while True:
 
     # determine and set the learning rate for this iteration
@@ -553,8 +633,13 @@ while True:
                     ),
                 })
                 if device_type == 'cuda':
-                    evaluation_metrics["eval/gpu_peak_memory_mb"] = (
+                    evaluation_gpu_memory_mb = (
                         torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+                    )
+                    evaluation_metrics["eval/gpu_peak_memory_mb"] = evaluation_gpu_memory_mb
+                    max_evaluation_gpu_memory_mb = max(
+                        max_evaluation_gpu_memory_mb or 0.0,
+                        evaluation_gpu_memory_mb,
                     )
             if wandb_hf_alignment:
                 evaluation_metrics["evaluation/hf_alignment"] = (
@@ -562,6 +647,10 @@ while True:
                 )
             if not wandb_compare_samples:
                 evaluation_metrics["samples/generated_text"] = create_generation_table(iter_num)
+                if latest_generation_tokens_per_sec is not None:
+                    evaluation_metrics["generation/tokens_per_sec"] = (
+                        latest_generation_tokens_per_sec
+                    )
             wandb.log(evaluation_metrics)
             if wandb_log_eval_artifact:
                 try:
@@ -600,7 +689,7 @@ while True:
                 print(f"saving checkpoint to {out_dir}")
                 checkpoint_path = os.path.join(out_dir, 'ckpt.pt')
                 torch.save(checkpoint, checkpoint_path)
-                if wandb_log and is_best_artifact:
+                if wandb_log and is_best_artifact and wandb_log_checkpoint_artifact:
                     try:
                         artifact = wandb.Artifact(
                             wandb_artifact_name,
@@ -617,6 +706,37 @@ while True:
                         wandb.log_artifact(artifact, aliases=['best'])
                     except Exception as exc:
                         print(f"warning: failed to upload checkpoint artifact: {exc}")
+                if lora_enabled and is_best_artifact:
+                    adapter_metadata = {
+                        'base_model': 'gpt2',
+                        'target_modules': lora_target_modules,
+                        'rank': lora_rank,
+                        'alpha': lora_alpha,
+                        'dropout': lora_dropout,
+                        'training_iteration': iter_num,
+                        'validation_loss': float(losses['val']),
+                        'seed': seed,
+                    }
+                    adapter_path = os.path.join(out_dir, 'lora_adapter.pt')
+                    torch.save({
+                        'lora_state_dict': raw_model.lora_state_dict(),
+                        'metadata': adapter_metadata,
+                    }, adapter_path)
+                    if wandb_log and lora_log_adapter_artifact:
+                        try:
+                            adapter_artifact = wandb.Artifact(
+                                lora_adapter_artifact_name,
+                                type='model-adapter',
+                                metadata=adapter_metadata,
+                            )
+                            adapter_artifact.add_file(
+                                adapter_path, name='lora_adapter.pt'
+                            )
+                            wandb.log_artifact(
+                                adapter_artifact, aliases=['best', 'latest']
+                            )
+                        except Exception as exc:
+                            print(f"warning: failed to upload LoRA adapter artifact: {exc}")
                 if is_best_artifact:
                     best_artifact_val_loss = losses['val']
     if iter_num == 0 and eval_only:
@@ -662,6 +782,8 @@ while True:
     # timing and logging
     t1 = time.time()
     dt = t1 - t0
+    total_training_seconds += dt
+    latest_training_tokens_per_sec = tokens_per_iter / dt
     should_print = iter_num % log_interval == 0 and master_process
     should_log_wandb = wandb_log and master_process
     if should_print or should_log_wandb:
@@ -679,7 +801,7 @@ while True:
             'train/iter_loss': lossf,
             'train/grad_norm': grad_norm.item(),
             'performance/iter_time_ms': dt * 1000,
-            'performance/tokens_per_sec': tokens_per_iter / dt,
+            'performance/tokens_per_sec': latest_training_tokens_per_sec,
         }
         if device_type == 'cuda':
             iteration_metrics['system/gpu_memory_allocated_mb'] = (
@@ -697,7 +819,77 @@ if wandb_log and master_process and wandb_compare_samples:
     add_generation_samples(
         comparison_samples_table, iter_num, stage=wandb_after_stage
     )
-    wandb.log({'samples/before_after': comparison_samples_table})
+    final_metrics = {
+        'samples/before_after': comparison_samples_table,
+        'performance/total_training_seconds': total_training_seconds,
+    }
+    if latest_generation_tokens_per_sec is not None:
+        final_metrics['generation/tokens_per_sec'] = latest_generation_tokens_per_sec
+    if wandb_log_model_comparison:
+        prompt_index = comparison_samples_table.columns.index('prompt')
+        text_index = comparison_samples_table.columns.index('generated_text')
+        stage_index = comparison_samples_table.columns.index('training_stage')
+        generated_by_stage = {
+            (row[prompt_index], row[stage_index]): row[text_index]
+            for row in comparison_samples_table.data
+        }
+        model_comparison_table = wandb.Table(columns=[
+            'fixed_prompt',
+            'pretrained_output',
+            'finetuned_output',
+            'observation',
+        ])
+        for prompt in [prompt for prompt in wandb_prompts.split('|') if prompt]:
+            pretrained_output = generated_by_stage.get(
+                (prompt, wandb_before_stage), ''
+            )
+            finetuned_output = generated_by_stage.get(
+                (prompt, wandb_after_stage), ''
+            )
+            observation = wandb_comparison_observation or (
+                'Outputs are identical.'
+                if pretrained_output == finetuned_output
+                else 'Output changed after fine-tuning.'
+            )
+            model_comparison_table.add_data(
+                prompt,
+                pretrained_output,
+                finetuned_output,
+                observation,
+            )
+        final_metrics['samples/model_comparison'] = model_comparison_table
+    if lora_enabled:
+        comparison_table = wandb.Table(columns=[
+            'method', 'total_parameters', 'trainable_parameters',
+            'trainable_percentage', 'validation_loss', 'perplexity',
+            'training_seconds', 'peak_gpu_memory_mb',
+            'training_tokens_per_sec',
+        ])
+        comparison_table.add_data(
+            'Full fine-tuning (historical Task 4)',
+            124439808, 124439808, 100.0, 3.24544, 25.6730,
+            None, 4073.75, 64226.63,
+        )
+        comparison_table.add_data(
+            'LoRA',
+            parameter_stats['total_params'],
+            parameter_stats['trainable_params'],
+            parameter_stats['trainable_percentage'],
+            float(best_artifact_val_loss), math.exp(float(best_artifact_val_loss)),
+            total_training_seconds, max_evaluation_gpu_memory_mb,
+            latest_training_tokens_per_sec,
+        )
+        final_metrics['comparison/full_finetune_vs_lora'] = comparison_table
+        final_metrics.update({
+            'lora/total_parameters': parameter_stats['total_params'],
+            'lora/trainable_parameters': parameter_stats['trainable_params'],
+            'lora/trainable_percentage': parameter_stats['trainable_percentage'],
+            'lora/best_validation_loss': float(best_artifact_val_loss),
+            'lora/best_perplexity': math.exp(float(best_artifact_val_loss)),
+        })
+    wandb.log(final_metrics)
+elif wandb_log and master_process:
+    wandb.log({'performance/total_training_seconds': total_training_seconds})
 
 if ddp:
     destroy_process_group()

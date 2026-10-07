@@ -26,6 +26,42 @@ class LayerNorm(nn.Module):
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
 
+class LoRALinear(nn.Linear):
+    """A Linear layer with a trainable low-rank update to its frozen weight."""
+
+    def __init__(self, in_features, out_features, bias, rank, alpha, dropout):
+        super().__init__(in_features, out_features, bias=bias)
+        if rank <= 0:
+            raise ValueError(f"LoRA rank must be positive, got {rank}")
+        self.lora_rank = rank
+        self.lora_alpha = alpha
+        self.lora_scaling = alpha / rank
+        self.lora_dropout = nn.Dropout(dropout)
+        self.lora_A = nn.Parameter(torch.empty(rank, in_features))
+        self.lora_B = nn.Parameter(torch.zeros(out_features, rank))
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+
+    @classmethod
+    def from_linear(cls, linear, rank, alpha, dropout):
+        lora = cls(
+            linear.in_features,
+            linear.out_features,
+            linear.bias is not None,
+            rank,
+            alpha,
+            dropout,
+        )
+        # Reuse the already-loaded parameters. This preserves the exact GPT-2
+        # base projection and its state-dict names; only lora_A/B are new.
+        lora.weight = linear.weight
+        lora.bias = linear.bias
+        return lora
+
+    def forward(self, input):
+        base = F.linear(input, self.weight, self.bias)
+        update = F.linear(F.linear(self.lora_dropout(input), self.lora_A), self.lora_B)
+        return base + update * self.lora_scaling
+
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
@@ -158,6 +194,69 @@ class GPT(nn.Module):
         if non_embedding:
             n_params -= self.transformer.wpe.weight.numel()
         return n_params
+
+    def enable_lora(self, rank=8, alpha=16.0, dropout=0.0):
+        """Attach LoRA to the combined QKV projection in every attention block."""
+        for block in self.transformer.h:
+            if isinstance(block.attn.c_attn, LoRALinear):
+                raise RuntimeError("LoRA is already enabled")
+            block.attn.c_attn = LoRALinear.from_linear(
+                block.attn.c_attn, rank, alpha, dropout
+            )
+
+    def freeze_non_lora_parameters(self):
+        """Freeze the base model and leave only LoRA factors trainable."""
+        for parameter in self.parameters():
+            parameter.requires_grad = False
+        for name, parameter in self.named_parameters():
+            if name.endswith(("lora_A", "lora_B")):
+                parameter.requires_grad = True
+        unexpected = [
+            name for name, parameter in self.named_parameters()
+            if parameter.requires_grad and not name.endswith(("lora_A", "lora_B"))
+        ]
+        if unexpected:
+            raise RuntimeError(f"unexpected trainable base parameters: {unexpected}")
+        if not any(parameter.requires_grad for parameter in self.parameters()):
+            raise RuntimeError("no trainable LoRA parameters were found")
+
+    def get_parameter_stats(self):
+        total = sum(parameter.numel() for parameter in self.parameters())
+        trainable = sum(
+            parameter.numel() for parameter in self.parameters()
+            if parameter.requires_grad
+        )
+        return {
+            "total_params": total,
+            "trainable_params": trainable,
+            "trainable_percentage": 100.0 * trainable / total,
+        }
+
+    def lora_state_dict(self):
+        return {
+            name: tensor.detach().cpu().clone()
+            for name, tensor in self.state_dict().items()
+            if name.endswith(("lora_A", "lora_B"))
+        }
+
+    def load_lora_state_dict(self, state_dict):
+        expected = set(self.lora_state_dict())
+        provided = set(state_dict)
+        if expected != provided:
+            missing = sorted(expected - provided)
+            unexpected = sorted(provided - expected)
+            raise RuntimeError(
+                f"LoRA adapter key mismatch; missing={missing}, unexpected={unexpected}"
+            )
+        current = self.state_dict()
+        with torch.no_grad():
+            for name, tensor in state_dict.items():
+                if current[name].shape != tensor.shape:
+                    raise RuntimeError(
+                        f"LoRA adapter shape mismatch for {name}: "
+                        f"{tuple(tensor.shape)} != {tuple(current[name].shape)}"
+                    )
+                current[name].copy_(tensor)
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
