@@ -14,7 +14,7 @@ set -euo pipefail
 
 module load anaconda3
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate nanogpt
+conda activate qwen-task6
 export HF_ENDPOINT=https://hf-mirror.com
 
 cd "$SLURM_SUBMIT_DIR"
