@@ -14,3 +14,28 @@ venv/
 *.out
 *.err
 *.bak_task13
+# Course project: secrets and local experiment outputs
+.env
+wandb/
+artifacts/
+
+# Python environments and caches
+.venv/
+.cache/
+
+# nanoGPT generated datasets
+data/*/input.txt
+data/*/train.bin
+data/*/val.bin
+data/*/meta.pkl
+
+# Model checkpoints and generated outputs
+out*/
+*.safetensors
+
+# Hugging Face cache
+.huggingface/
+huggingface/
+
+# Local backup files
+*.save
