@@ -20,3 +20,9 @@ This branch organizes the W&B logging components of the nanoGPT course project.
 - `config/finetune_gpt2_shakespeare_wandb.py`
 - `reports/wandb/experiment_summary.md`
 - `reports/wandb/scratch_training_curve.png`
+
+## Validation
+
+W&B integration should be validated with lightweight runs that confirm metric logging, Tables, and Artifact handling without full model training.
+
+The lightweight validation should verify key logged metrics including loss, learning rate, iteration time, and gradient norm.
