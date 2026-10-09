@@ -24,3 +24,5 @@ This branch organizes the Hugging Face inference components of the nanoGPT cours
 ## Validation
 
 Inference and alignment checks should use fixed prompts and lightweight model loading. Full fine-tuning is not required for PR validation.
+
+For reproducible comparison runs, record the model name, tokenizer, prompt, and generation settings together with the generated output.
