@@ -19,3 +19,8 @@ This branch organizes the token-analysis components of the nanoGPT course projec
 - `reports/tokenizer_comparison.csv`
 - `reports/embedding_norm_statistics.json`
 - `reports/embedding_norm_distribution.png`
+
+## Reproduction
+
+Character statistics and tokenizer analyses can be reproduced using the scripts in `scripts/`.
+Generated binary datasets and model checkpoints remain excluded by `.gitignore`.
