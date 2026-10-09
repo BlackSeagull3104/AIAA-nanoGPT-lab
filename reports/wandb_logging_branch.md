@@ -24,3 +24,5 @@ This branch organizes the W&B logging components of the nanoGPT course project.
 ## Validation
 
 W&B integration should be validated with lightweight runs that confirm metric logging, Tables, and Artifact handling without full model training.
+
+The lightweight validation should verify key logged metrics including loss, learning rate, iteration time, and gradient norm.
