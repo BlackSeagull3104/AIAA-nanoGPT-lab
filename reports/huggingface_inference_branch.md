@@ -20,3 +20,7 @@ This branch organizes the Hugging Face inference components of the nanoGPT cours
 - `reports/hf_gpt2_predictions.jsonl`
 - `reports/hf_nanogpt_alignment.json`
 - `reports/task11_instruct_comparison.json`
+
+## Validation
+
+Inference and alignment checks should use fixed prompts and lightweight model loading. Full fine-tuning is not required for PR validation.
