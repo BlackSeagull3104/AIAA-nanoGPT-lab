@@ -232,3 +232,9 @@ For more questions/discussions feel free to stop by **#nanoGPT** on Discord:
 ## acknowledgements
 
 All nanoGPT experiments are powered by GPUs on [Lambda labs](https://lambdalabs.com), my favorite Cloud GPU provider. Thank you Lambda labs for sponsoring nanoGPT!
+
+## Course Experiment Results
+
+### Hugging Face Inference
+
+The course experiments include Hugging Face GPT-2 inference, nanoGPT/Hugging Face weight alignment, Qwen inference comparison, and GPT-2 fine-tuning.
