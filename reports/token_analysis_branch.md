@@ -28,3 +28,5 @@ Generated binary datasets and model checkpoints remain excluded by `.gitignore`.
 ## Validation
 
 The token analysis workflow is designed to run independently of full model training. Generated statistics should be checked for expected token counts, tokenizer behavior, and embedding dimensions.
+
+Generated analysis outputs should remain small and suitable for version control; large binary datasets and model checkpoints should remain excluded.
