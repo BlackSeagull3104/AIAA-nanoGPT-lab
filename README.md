@@ -238,3 +238,7 @@ All nanoGPT experiments are powered by GPUs on [Lambda labs](https://lambdalabs.
 ### Hugging Face Inference
 
 The course experiments include Hugging Face GPT-2 inference, nanoGPT/Hugging Face weight alignment, Qwen inference comparison, and GPT-2 fine-tuning.
+
+### W&B Logging
+
+The course experiments track training and validation metrics, iteration performance, W&B Tables, checkpoint Artifacts, and experiment summaries.
