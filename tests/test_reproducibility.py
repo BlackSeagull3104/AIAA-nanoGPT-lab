@@ -99,11 +99,16 @@ def test_gpt2_tokenizer_ids_match_offline(monkeypatch):
     except OSError:
         pytest.skip("Hugging Face GPT-2 tokenizer is not available in the local cache")
 
-    text = "First Citizen: reproducible tokenization!"
-    assert tiktoken_encoder.encode_ordinary(text) == hf_tokenizer.encode(
-        text,
-        add_special_tokens=False,
+    samples = (
+        "First Citizen: reproducible tokenization!",
+        " ROMEO:\nWherefore art thou?",
+        "Café — déjà vu.",
     )
+    for text in samples:
+        assert tiktoken_encoder.encode_ordinary(text) == hf_tokenizer.encode(
+            text,
+            add_special_tokens=False,
+        ), f"token IDs differ for {text!r}"
 
 
 def test_tiny_gpt_forward_output_shape():
