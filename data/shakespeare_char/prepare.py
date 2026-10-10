@@ -1,11 +1,30 @@
+import argparse
 import os
 import pickle
 from collections import Counter
 
 import requests
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Prepare the character-level Tiny Shakespeare dataset."
+    )
+    parser.add_argument(
+        "--write-reports",
+        action="store_true",
+        help="Write token-frequency CSV and PNG reports.",
+    )
+    parser.add_argument(
+        "--reports-dir",
+        default="reports",
+        help="Output directory used only with --write-reports.",
+    )
+    return parser.parse_args()
+
+
+args = parse_args()
 
 
 # ============================================================
@@ -201,75 +220,70 @@ for row in top30:
 
 
 # ============================================================
-# 9. Create reports directory
+# 9. Optionally regenerate token-frequency reports
 # ============================================================
 
-reports_dir = "reports"
+csv_path = None
+png_path = None
 
-os.makedirs(
-    reports_dir,
-    exist_ok=True
-)
+if args.write_reports:
+    import pandas as pd
+    import matplotlib.pyplot as plt
 
+    os.makedirs(
+        args.reports_dir,
+        exist_ok=True
+    )
 
-# ============================================================
-# 10. Save complete token statistics CSV
-# ============================================================
+    df = pd.DataFrame(token_stats)
 
-df = pd.DataFrame(token_stats)
+    csv_path = os.path.join(
+        args.reports_dir,
+        "token_frequency_char.csv"
+    )
 
-csv_path = os.path.join(
-    reports_dir,
-    "token_frequency_char.csv"
-)
+    df.to_csv(
+        csv_path,
+        index=False,
+        encoding="utf-8"
+    )
 
-df.to_csv(
-    csv_path,
-    index=False,
-    encoding="utf-8"
-)
+    print("\nSaved CSV:", csv_path)
 
-print("\nSaved CSV:", csv_path)
+    labels = [
+        repr(row["character"])
+        for row in top30
+    ]
 
+    counts = [
+        row["count"]
+        for row in top30
+    ]
 
-# ============================================================
-# 11. Plot Top 30 token frequencies
-# ============================================================
+    plt.figure(figsize=(12, 6))
 
-labels = [
-    repr(row["character"])
-    for row in top30
-]
+    plt.bar(labels, counts)
 
-counts = [
-    row["count"]
-    for row in top30
-]
+    plt.xlabel("Character Token")
+    plt.ylabel("Count")
+    plt.title("Top 30 Character Token Frequencies")
 
-plt.figure(figsize=(12, 6))
+    plt.xticks(rotation=45)
+    plt.tight_layout()
 
-plt.bar(labels, counts)
+    png_path = os.path.join(
+        args.reports_dir,
+        "token_frequency_char.png"
+    )
 
-plt.xlabel("Character Token")
-plt.ylabel("Count")
-plt.title("Top 30 Character Token Frequencies")
+    plt.savefig(
+        png_path,
+        dpi=150
+    )
 
-plt.xticks(rotation=45)
-plt.tight_layout()
+    plt.close()
 
-png_path = os.path.join(
-    reports_dir,
-    "token_frequency_char.png"
-)
-
-plt.savefig(
-    png_path,
-    dpi=150
-)
-
-plt.close()
-
-print("Saved bar chart:", png_path)
+    print("Saved bar chart:", png_path)
 
 
 # ============================================================
@@ -296,8 +310,9 @@ print("Round-trip successful:", round_trip_success)
 
 print("\n=== Task 3 Complete ===")
 print("Generated files:")
-print("-", csv_path)
-print("-", png_path)
 print("-", train_bin_path)
 print("-", val_bin_path)
 print("-", meta_path)
+if args.write_reports:
+    print("-", csv_path)
+    print("-", png_path)

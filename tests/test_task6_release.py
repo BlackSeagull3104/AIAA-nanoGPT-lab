@@ -1,9 +1,19 @@
 import ast
 import json
+import shutil
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CHAR_PREPARE_PATH = REPO_ROOT / "data" / "shakespeare_char" / "prepare.py"
+HISTORICAL_REPORT_PATHS = (
+    REPO_ROOT / "reports" / "token_frequency_char.csv",
+    REPO_ROOT / "reports" / "token_frequency_char.png",
+)
 
 
 def load_assignments(relative_path):
@@ -19,6 +29,23 @@ def load_assignments(relative_path):
                 except (ValueError, TypeError):
                     pass
     return source, tree, assignments
+
+
+def create_local_character_prepare_tree(tmp_path):
+    script_dir = tmp_path / "data" / "shakespeare_char"
+    script_dir.mkdir(parents=True)
+    shutil.copy2(CHAR_PREPARE_PATH, script_dir / "prepare.py")
+    # Include every character used by the script's fixed round-trip check and
+    # enough repetitions for non-empty train and validation splits.
+    (script_dir / "input.txt").write_text(
+        "First Citizen:\n" * 20,
+        encoding="utf-8",
+    )
+    return script_dir / "prepare.py", script_dir
+
+
+def historical_report_bytes():
+    return {path: path.read_bytes() for path in HISTORICAL_REPORT_PATHS}
 
 
 def test_manifest_is_explicitly_pending_and_uses_delivery_ref():
@@ -111,3 +138,54 @@ def test_task6_training_config_stays_within_smoke_boundaries():
     assert config["n_layer"] == 1
     assert config["n_head"] == 1
     assert config["n_embd"] <= 32
+
+
+def test_character_prepare_default_writes_only_dataset_artifacts(tmp_path):
+    prepare_script, script_dir = create_local_character_prepare_tree(tmp_path)
+    reports_before = historical_report_bytes()
+
+    result = subprocess.run(
+        [sys.executable, str(prepare_script)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    for filename in ("train.bin", "val.bin", "meta.pkl"):
+        assert (script_dir / filename).is_file()
+    assert not (tmp_path / "reports" / "token_frequency_char.csv").exists()
+    assert not (tmp_path / "reports" / "token_frequency_char.png").exists()
+    assert "Round-trip successful: True" in result.stdout
+    assert historical_report_bytes() == reports_before
+
+
+def test_character_prepare_reports_are_explicit_and_use_requested_dir(tmp_path):
+    pytest.importorskip("pandas")
+    pytest.importorskip("matplotlib")
+    prepare_script, script_dir = create_local_character_prepare_tree(tmp_path)
+    reports_before = historical_report_bytes()
+    requested_reports_dir = tmp_path / "explicit-analysis"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(prepare_script),
+            "--write-reports",
+            "--reports-dir",
+            str(requested_reports_dir),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    for filename in ("train.bin", "val.bin", "meta.pkl"):
+        assert (script_dir / filename).is_file()
+    assert (requested_reports_dir / "token_frequency_char.csv").is_file()
+    assert (requested_reports_dir / "token_frequency_char.png").is_file()
+    assert not (tmp_path / "reports").exists()
+    assert historical_report_bytes() == reports_before
