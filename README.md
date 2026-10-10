@@ -1,5 +1,148 @@
 
-# nanoGPT
+# AIAA nanoGPT Lab
+
+## 1. Project overview
+
+This course repository extends Andrej Karpathy's nanoGPT with reproducible
+character-level training, Hugging Face GPT-2 comparison, full and LoRA
+fine-tuning configurations, W&B reporting, and lightweight release checks.
+Checked-in historical evidence is kept separate from the fresh Task 6
+reproduction; a result is not called reproduced until Phase C actually runs.
+
+## 2. Repository and release status
+
+- Repository: <https://github.com/BlackSeagull3104/AIAA-nanoGPT-lab>
+- Delivery branch/ref: `course/nanogpt-experiments`
+- Task 6 clean-clone reproduction: **pending**
+- Task 6 lightweight W&B run: **pending**
+- Annotated release tag `v1.0-course-complete`: **pending**
+
+Machine-readable evidence and pending fields are in
+[`submission_manifest.json`](submission_manifest.json). Phase C will create
+`reports/clean_clone_reproduction.md`; it does not exist yet because that
+reproduction has not run.
+
+## 3. Installation
+
+Python 3.10 or newer is recommended. From an isolated environment:
+
+```bash
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The requirements use CPU/GPU-neutral compatibility ranges. Select a
+platform-specific PyTorch build separately only when GPU work is authorized;
+the Task 6 smoke workflow below is CPU-only.
+
+## 4. Lightweight validation
+
+```bash
+python -m pytest tests/test_task6_release.py -v
+python -m pytest tests/test_reproducibility.py -v -rs
+python -m pytest -v
+```
+
+These checks do not train, take optimizer steps, use a GPU, or contact W&B.
+The tokenizer-alignment test skips safely if its local cache is absent.
+
+## 5. Prepare the character dataset
+
+```bash
+python data/shakespeare_char/prepare.py
+```
+
+This downloads Tiny Shakespeare if needed and creates ignored `train.bin`,
+`val.bin`, and `meta.pkl` files under `data/shakespeare_char/`.
+
+## 6. Two-iteration CPU smoke training
+
+```bash
+python train.py config/train_task6_repro.py
+```
+
+The dedicated config defaults to two optimizer iterations, CPU, float32, no
+compilation, and no W&B. Its checkpoint is written below the ignored
+`out-task6-repro/` directory. This is only a wiring check, not a training result.
+
+## 7. Safe scratch checkpoint sampling
+
+After the smoke checkpoint exists:
+
+```bash
+python sample.py --init_from=resume --out_dir=out-task6-repro --device=cpu --dtype=float32 --num_samples=1 --max_new_tokens=16 --sample_output_path=out-task6-repro/sample.jsonl --stats_output_path=out-task6-repro/sample_stats.json
+```
+
+`sample.py` retains its historical default report paths for compatibility.
+The explicit Task 6 paths above prevent overwriting checked-in reports.
+
+## 8. Single-prompt Hugging Face GPT-2 inference
+
+```bash
+python scripts/task6_hf_gpt2_inference.py --prompt "To be, or not to be" --max-new-tokens 16 --output out-task6-repro/hf_gpt2_prompt.json
+```
+
+The model is explicitly `openai-community/gpt2` and execution is CPU-safe.
+The first uncached run may download it; add `--local-files-only` to require a
+local cache. Without `--output`, the script prints JSON and writes no report.
+
+## 9. Verified historical evidence
+
+These are checked-in historical records, not Phase C rerun claims. See
+[`reports/wandb/experiment_summary.md`](reports/wandb/experiment_summary.md).
+
+| Experiment | Run | Recorded result |
+|---|---|---|
+| Scratch character nanoGPT | `ll3vo21e` | 812,288 parameters; final validation loss 1.67235 |
+| GPT-2 pretrained evaluation | `k6sxm27c` | validation loss 3.99624; perplexity 54.3933 |
+| GPT-2 full fine-tuning | `ermv6omj` | best/final validation loss 3.24544; perplexity 25.6730 |
+| GPT-2 versus Qwen QA | `49o4zyt7` | five-prompt qualitative comparison |
+
+The recorded full fine-tune artifact is
+`nanogpt-gpt2-finetuned-checkpoint:v4`. No reliable historical total training
+time is available. LoRA run/artifact identifiers and release metrics have not
+been independently verified, so they are not invented here. Relevant model IDs
+are `openai-community/gpt2` and `Qwen/Qwen2.5-0.5B-Instruct`.
+
+## 10. Configurations and reports
+
+- Scratch: `config/train_shakespeare_char_scratch_wandb.py`
+- GPT-2 evaluation: `config/eval_gpt2_pretrained_wandb.py`
+- Full fine-tuning: `config/finetune_gpt2_shakespeare_wandb.py`
+- LoRA: `config/finetune_gpt2_shakespeare_lora_wandb.py`
+- Qwen comparison: `config/task6_qwen_qa_wandb.py`
+- Task 6 CPU smoke: `config/train_task6_repro.py`
+- Historical summary: `reports/wandb/experiment_summary.md`
+
+Full training, GPU use, Slurm submission, and authenticated W&B activity are
+outside the lightweight commands and require separate authorization.
+
+## 11. Reproduction limitations and attribution
+
+Phase C will use a fresh clone and record exact commands, exit statuses,
+runtimes, results, and the tested Git SHA. A commit cannot contain its own
+literal SHA, because writing it changes the commit. The manifest therefore uses
+`delivery_ref`; `tested_source_sha` remains null until an immutable commit is
+actually tested. The release tag is created only after validation.
+
+This work is derived from [karpathy/nanoGPT](https://github.com/karpathy/nanoGPT)
+and retains the upstream MIT license in [`LICENSE`](LICENSE).
+
+---
+
+## Archived upstream usage reference
+
+The remainder of this file is the original upstream-oriented reference. Its
+large-scale GPU examples are background only and are **not** part of the course
+release reproduction procedure above.
+
+<details>
+<summary>Expand the archived upstream README</summary>
+
+# nanoGPT upstream reference
 
 ![nanoGPT](assets/nanogpt.jpg)
 
@@ -10,7 +153,9 @@
 
 ---
 
-The simplest, fastest repository for training/finetuning medium-sized GPTs. It is a rewrite of [minGPT](https://github.com/karpathy/minGPT) that prioritizes teeth over education. Still under active development, but currently the file `train.py` reproduces GPT-2 (124M) on OpenWebText, running on a single 8XA100 40GB node in about 4 days of training. The code itself is plain and readable: `train.py` is a ~300-line boilerplate training loop and `model.py` a ~300-line GPT model definition, which can optionally load the GPT-2 weights from OpenAI. That's it.
+The upstream project is a compact rewrite of minGPT. Its historical large-scale
+GPT-2 reproduction examples are retained below solely for provenance and are
+not validated or required by this course delivery.
 
 ![repro124m](assets/gpt2_124M_loss.png)
 
@@ -242,3 +387,5 @@ The course experiments include Hugging Face GPT-2 inference, nanoGPT/Hugging Fac
 ### W&B Logging
 
 The course experiments track training and validation metrics, iteration performance, W&B Tables, checkpoint Artifacts, and experiment summaries.
+
+</details>

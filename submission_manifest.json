@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "repository_url": "https://github.com/BlackSeagull3104/AIAA-nanoGPT-lab",
+  "delivery_ref": "course/nanogpt-experiments",
+  "release_tag": {
+    "name": "v1.0-course-complete",
+    "status": "pending"
+  },
+  "tested_source_sha": null,
+  "delivery_status": "phase_a_preparation",
+  "historical_evidence": {
+    "source": "reports/wandb/experiment_summary.md",
+    "environment_source": "reports/environment.json",
+    "environment": {
+      "status": "historical_not_current_task6_environment",
+      "python": "3.13.15",
+      "pytorch": "2.11.0+cu128",
+      "transformers": "5.16.1",
+      "wandb": "0.28.1",
+      "tiktoken": "0.14.0",
+      "device": "Tesla T4"
+    },
+    "runs": {
+      "scratch_character_nanogpt": {
+        "run_id": "ll3vo21e",
+        "parameters": 812288,
+        "final_validation_loss": 1.67235
+      },
+      "gpt2_pretrained_evaluation": {
+        "run_id": "k6sxm27c",
+        "parameters": 124439808,
+        "validation_loss": 3.99624,
+        "perplexity": 54.3933
+      },
+      "gpt2_full_finetuning": {
+        "run_id": "ermv6omj",
+        "parameters": 124439808,
+        "best_validation_loss": 3.24544,
+        "final_validation_loss": 3.24544,
+        "perplexity": 25.673,
+        "historical_total_training_time_seconds": null,
+        "artifact": "nanogpt-gpt2-finetuned-checkpoint:v4"
+      },
+      "gpt2_qwen_qa_comparison": {
+        "run_id": "49o4zyt7",
+        "result_type": "five_prompt_qualitative_comparison"
+      },
+      "gpt2_lora": {
+        "status": "not_independently_verified_for_release_manifest",
+        "run_id": null,
+        "artifact": null,
+        "metrics": null
+      }
+    },
+    "wandb_links": {
+      "comparison_project": "https://forge.coreweave.com/wandb/qma662-hkust/aiaa-nanogpt-comparison/workspace?nw=nwuserqma662",
+      "task6_qa_run": "https://forge.coreweave.com/wandb/qma662-hkust/aiaa-nanogpt-task6/runs/49o4zyt7?nw=nwuserqma662"
+    }
+  },
+  "model_ids": {
+    "huggingface_gpt2": "openai-community/gpt2",
+    "qwen_instruct": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "config_paths": {
+    "scratch": "config/train_shakespeare_char_scratch_wandb.py",
+    "gpt2_pretrained": "config/eval_gpt2_pretrained_wandb.py",
+    "gpt2_full_finetuning": "config/finetune_gpt2_shakespeare_wandb.py",
+    "gpt2_lora": "config/finetune_gpt2_shakespeare_lora_wandb.py",
+    "qwen_comparison": "config/task6_qwen_qa_wandb.py",
+    "task6_smoke": "config/train_task6_repro.py"
+  },
+  "task6_reproduction": {
+    "status": "pending",
+    "clean_clone_report": "reports/clean_clone_reproduction.md",
+    "clean_clone_report_status": "not_created",
+    "actual_environment": null,
+    "lightweight_wandb_run": {
+      "status": "pending",
+      "run_id": null,
+      "url": null
+    },
+    "runtime_seconds": null,
+    "result": null
+  }
+}

@@ -23,6 +23,8 @@ seed = 1337
 device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
 dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32' or 'bfloat16' or 'float16'
 compile = False # use PyTorch 2.0 to compile the model to be faster
+sample_output_path = os.path.join("reports", "samples_scratch_before.jsonl")
+stats_output_path = os.path.join("reports", "samples_scratch_before_stats.json")
 exec(open('configurator.py').read()) # overrides from command line or config file
 # -----------------------------------------------------------------------------
 
@@ -117,17 +119,13 @@ x = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
 import json
 import time
 
-report_dir = "reports"
-sample_path = os.path.join(
-    report_dir,
-    "samples_scratch_before.jsonl"
-)
-stats_path = os.path.join(
-    report_dir,
-    "samples_scratch_before_stats.json"
-)
+sample_path = sample_output_path
+stats_path = stats_output_path
 
-os.makedirs(report_dir, exist_ok=True)
+for output_path in (sample_path, stats_path):
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
 # Reset CUDA peak-memory statistics before generation.
 if device_type == "cuda":
